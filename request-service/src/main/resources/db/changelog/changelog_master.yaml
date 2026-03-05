@@ -1,0 +1,18 @@
+databaseChangeLog:
+  - changeSet:
+      id: V1__initial_schema.sql
+      author: yakovavia
+      sqlFile:
+        path: db/changelog/changes/V1__initial_schema.sql
+        relativeToChangeFile: true
+        splitStatements: true
+        endDelimiter: ;
+
+  - changeSet:
+      id: V2__rename_column.sql
+      author: yakovavia
+      sqlFile:
+        path: db/changelog/changes/V2__rename_column.sql
+        relativeToChangeFile: true
+        splitStatements: true
+        endDelimiter: ;

@@ -1,0 +1,360 @@
+# =============================================================================
+# DOCKER COMPOSE ДЛЯ REQUESTSERVICE - ПОЛНЫЙ СТЕК
+# =============================================================================
+# Запуск: docker-compose --env-file .env up -d
+# Остановка: docker-compose down -v (удалит volumes)
+#
+# Компоненты:
+#   postgres     - база данных (хранит заказы)
+#   requestservice-app - само приложение Spring Boot
+#   prometheus   - сбор метрик (хранит 15 дней)
+#   grafana      - визуализация (дашборды)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - Production-ready конфигурация
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_requestservice
+    ports:
+      - "${POSTGRES_PORT}:5432"  # Проброс порта для внешних подключений (например, DBeaver)
+    environment:
+      # ВСЕ секреты берутся из .env файла, НЕ хардкодим!
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Персистентность данных БД
+    restart: unless-stopped  # Автоматический перезапуск при падении (production)
+    command:
+      # Тюнинг PostgreSQL для лучшей производительности
+      - "postgres"
+      - "-c"
+      - "max_connections=100"      # Максимум подключений (не даём упасть от перегрузки)
+      - "-c"
+      - "shared_buffers=256MB"      # Кэш в памяти (ускоряет запросы)
+    networks:
+      - requestservice-network  # Изолированная сеть для сервисов
+    healthcheck:
+      # Проверка, что БД действительно готова принимать подключения
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s   # Проверять каждые 10 секунд
+      timeout: 5s     # Ждать ответа не больше 5 секунд
+      retries: 5      # 5 неудач = контейнер нездоров
+
+  # ---------------------------------------------------------------------------
+  # Spring Boot приложение
+  # ---------------------------------------------------------------------------
+  request-service:
+    build:
+      context: .       # Текущая директория
+      dockerfile: request-service/Dockerfile         # Используем наш multi-stage Dockerfile
+      args:
+        # Аргументы сборки (только метаинформация, НЕ секреты!)
+        APP_VERSION: ${APP_VERSION:-1.0.0}  # Версия приложения для меток в образе
+        # ВНИМАНИЕ: Пароли НЕ передаём в ARGS! Они останутся в образе.
+    container_name: request_service
+    ports:
+      - "${REQUEST_SERVICE_PORT:-8081}:8081"           # Проброс порта наружу
+    environment:
+
+      SPRING_PROFILES_ACTIVE: elk
+      ENVIRONMENT: production
+
+      # Сервер
+      SERVER_PORT: 8081
+
+      # -----------------------------------------------------------------------
+      # Подключение к БД (runtime)
+      # -----------------------------------------------------------------------
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}  # Секрет!
+
+      # -----------------------------------------------------------------------
+      # Для миграций и прямых запросов (если нужно внутри приложения)
+      # -----------------------------------------------------------------------
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}           # Секрет!
+
+      # -----------------------------------------------------------------------
+      # JPA настройки
+      # -----------------------------------------------------------------------
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}  # validate в production
+
+      # -----------------------------------------------------------------------
+      # Метрики и мониторинг (для Prometheus)
+      # -----------------------------------------------------------------------
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"  # Включаем экспорт в Prometheus
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics,loggers
+
+      # -----------------------------------------------------------------------
+      # Логирование (опционально, для отладки)
+      # -----------------------------------------------------------------------
+      LOGGING_LEVEL_COM_REQUESTSERVICE: DEBUG  # Детальные логи нашего кода
+
+      # Трассировка OpenTelemetry
+      MANAGEMENT_TRACING_ENABLED: "true"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+
+      # Логирование с traceId
+#      LOGGING_PATTERN_CONSOLE: "d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - [traceId=%X{traceId:-}, spanId=%X{spanId:-}] %msg%n"
+#      LOGGING_LEVEL_OLEBORN_ORDERHUB: DEBUG
+
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL}
+
+    depends_on:
+      postgres:
+        condition: service_healthy  # Ждём, пока PostgreSQL полностью готов
+    restart: unless-stopped
+    healthcheck:
+      # Проверка, что Spring Boot жив и отвечает
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s      # Реже, чем у БД (Spring Boot тяжелее стартует)
+      timeout: 10s
+      retries: 3
+      start_period: 40s  # Даём время на запуск (первые 40с не проверяем)
+    networks:
+      - requestservice-network
+
+  # ---------------------------------------------------------------------------
+  # Notification Service - сервис уведомлений
+  # ---------------------------------------------------------------------------
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+    container_name: notification_service
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-8082}:8082"
+    environment:
+      # Сервер
+      SERVER_PORT: 8082
+
+      # Метрики для Prometheus (опционально)
+      MANAGEMENT_METRICS_EXPORT_PROMETHEUS_ENABLED: "true"
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,prometheus,metrics
+
+      # Трассировка OpenTelemetry
+      MANAGEMENT_TRACING_ENABLED: "true"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+
+      # Логирование с traceId
+#      LOGGING_PATTERN_CONSOLE: "%d{yyyy-MM-dd HH:mm:ss} - %X{traceId} - %msg%n"
+#      LOGGING_LEVEL_OLEBORN_ORDERHUB: DEBUG
+
+      SPRING_PROFILES_ACTIVE: elk
+      ENVIRONMENT: production
+
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy  # Ждём, пока PostgreSQL полностью готов
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8082/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - requestservice-network
+
+  # ---------------------------------------------------------------------------
+  # Prometheus - сбор метрик
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus_requestservice
+    volumes:
+      # Конфигурация Prometheus (скажем, куда ходить за метриками)
+      - ./request-service/src/main/resources/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Данные метрик (чтобы не терять историю при перезапуске)
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'  # Храним метрики 15 дней (production standard)
+    ports:
+      - '9090:9090'  # UI Prometheus (только для отладки)
+    restart: unless-stopped
+    networks:
+      - requestservice-network
+
+  # ---------------------------------------------------------------------------
+  # Grafana - визуализация дашбордов
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: grafana_requestservice
+    volumes:
+      - grafana_data:/var/lib/grafana  # Сохраняем дашборды и настройки
+    environment:
+      # Учётка для первого входа (обязательно поменять в production!)
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      # Дополнительные плагины (например, для круговых диаграмм)
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    ports:
+      - '3000:3000'  # UI Grafana
+    depends_on:
+      - prometheus  # Логически зависит, но технически может работать без него
+    restart: unless-stopped
+    networks:
+      - requestservice-network
+
+  # ---------------------------------------------------------------------------
+  # Jaeger - распределённая трассировка
+  # ---------------------------------------------------------------------------
+  jaeger:
+    image: jaegertracing/all-in-one:1.52
+    container_name: jaeger
+    ports:
+      - "16686:16686"  # UI
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      # Храним трассы в памяти (для демо), в production нужен persistent storage
+      SPAN_STORAGE_TYPE: memory
+    restart: unless-stopped
+    networks:
+      - requestservice-network
+
+  # =============================================================================
+  # ELK СТЕК - структурированное логирование
+  # =============================================================================
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: elasticsearch_requestservice
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+      - xpack.monitoring.collection.enabled=true
+      - "cluster.name=requestservice-elk"
+    ports:
+      - "${ELASTICSEARCH_PORT}:9200"  # HTTP API
+      - "9300:9300"  # Transport protocol
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    networks:
+      - requestservice-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Elasticsearch Exporter для мониторинга в Prometheus
+  elasticsearch-exporter:
+    image: prometheuscommunity/elasticsearch-exporter:latest
+    container_name: elasticsearch_exporter_requestservice
+    command:
+      - '--es.uri=http://elasticsearch:9200'
+      - '--es.all'                 # Собирать метрики со всех нод
+      - '--es.indices'             # Собирать метрики по индексам
+      - '--es.indices_settings'    # Собирать настройки индексов
+      - '--es.shards'              # Собирать метрики по шардам
+    ports:
+      - "9114:9114"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - requestservice-network
+
+  logstash:
+    image: logstash:8.11.0
+    container_name: logstash_requestservice
+    ports:
+      - "${LOGSTASH_PORT}:5000"   # TCP input для логов
+      - "9600:9600"               # Monitoring API
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+    environment:
+      LS_JAVA_OPTS: "-Xms256m -Xmx256m"
+      # Параметры подключения к Elasticsearch
+      ELASTICSEARCH_HOSTS: "http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - requestservice-network
+  kibana:
+    image: kibana:8.11.0
+    container_name: kibana_requestservice
+    ports:
+      - "${KIBANA_PORT}:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: "http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"
+      # Локализация
+      I18N_LOCALE: ru
+      # Настройки по умолчанию
+      KIBANA_DEFAULT_APP_ID: discover
+      SERVER_NAME: kibana_requestservice
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - requestservice-network
+
+  # Опционально: Filebeat для сбора логов из файлов (альтернатива TCP)
+  filebeat:
+    image: elastic/filebeat:8.11.0
+    container_name: filebeat_requestservice
+    user: root
+    volumes:
+      # Конфигурация Filebeat
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      # Docker socket для чтения логов контейнеров
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Логи Docker
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: ["--strict.perms=false"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      logstash:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - requestservice-network
+
+# -------------------------------------------------------------------------------
+# Persistent volumes - данные НЕ теряются при docker-compose down
+# -------------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    name: requestservice_postgres_data      # Явное имя для удобства
+  prometheus_data:
+    name: requestservice_prometheus_data
+  grafana_data:
+    name: requestservice_grafana_data
+  jaeger_data:
+    name: requestservice_jaeger_data
+  elasticsearch_data:
+    name: requestservice_elasticsearch_data
+  filebeat_data:
+    name: requestservice_filebeat_data
+
+# -------------------------------------------------------------------------------
+# Изолированная сеть для сервисов
+# -------------------------------------------------------------------------------
+networks:
+  requestservice-network:
+    name: requestservice-network
+    driver: bridge  # Стандартный драйвер для изоляции
