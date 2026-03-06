@@ -37,6 +37,7 @@ public class Bid {
         this.status = BidStatus.NEW;
         this.createAt = Instant.now();
         this.bidNumber = bidNumber;
+        this.items.addAll(items);
 
         items.forEach(i -> i.setBid(this));
     }

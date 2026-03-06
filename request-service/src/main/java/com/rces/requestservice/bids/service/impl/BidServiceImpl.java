@@ -38,7 +38,7 @@ public class BidServiceImpl implements BidService {
     @SneakyThrows
     public Bid createBid(CreateBidRequest request) {
 
-        log.debug("В метод createBid получен запрос: {}", request);
+        log.info("В метод createBid получен запрос: {}", request);
 
         //TODO имитация проблемы удалю
         int random = new Random().nextInt(100);
@@ -53,6 +53,8 @@ public class BidServiceImpl implements BidService {
             log.info("Сервис BidService замедлился");
             Thread.sleep(200);
         }
+
+        log.info("Передает items в заявку : {}", request.items());
 
         List<BidItem> items = request.items().stream()
                 .map(item -> new BidItem(
@@ -80,7 +82,7 @@ public class BidServiceImpl implements BidService {
                     )
             );
 
-            log.debug("Успешно сохранено");
+            log.info("Успешно сохранено");
 
             Span.current().setAttribute("bid.id", saveBid.getId());
 
