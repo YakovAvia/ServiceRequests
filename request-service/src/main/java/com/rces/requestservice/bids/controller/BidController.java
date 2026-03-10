@@ -2,8 +2,8 @@ package com.rces.requestservice.bids.controller;
 
 import com.rces.requestservice.bids.BidResponse;
 import com.rces.requestservice.bids.CreateBidRequest;
-import com.rces.requestservice.bids.domain.Bid;
 import com.rces.requestservice.bids.service.BidService;
+import com.rces.requestservice.bids.service.BidUpdate;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,18 +25,41 @@ public class BidController {
             @Valid @RequestBody CreateBidRequest request
     ) {
         log.info("Пришел запрос на создание заявки, данные в заявке: {}", request);
-        Bid bid = bidService.createBid(request);
-        BidResponse response = BidResponse.from(bid);
+        BidResponse response = bidService.createBid(request);
 
         log.info("Заявка успешно создана, данные созданной заявки: {}", response);
-        return ResponseEntity.created(URI.create("/bid/" + bid.getId())).body(response);
+        return ResponseEntity.created(URI.create("/bid/" + response.id())).body(response);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<BidResponse> getBidWithItems(@PathVariable Long id) {
-        Bid bid = bidService.getBidWithItems(id);
-        BidResponse response = BidResponse.from(bid);
+    public ResponseEntity<BidResponse> getBidWithItems(
+            @PathVariable Long id
+    ) {
+        log.info("Пришел запрос на получение заявки с вложенными в нее деталями, ID: {}", id);
+        BidResponse response = bidService.getBidWithItems(id);
+
+        log.info("Заявка успешно получена и передана, заявка: {}", response);
         return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/update")
+    public ResponseEntity<BidResponse> updateBid(
+            @RequestBody BidUpdate bidUpdate
+    ) {
+        log.info("Пришел запрос на обновление заявки с ID: {}", bidUpdate.id());
+        BidResponse response = bidService.updateBid(bidUpdate);
+        log.info("Заявка с ID: {}, успешно обновлена!", response.id());
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteBid(
+            @PathVariable Long id
+    ) {
+        log.info("Пришел запрос на удаление заявки с ID: {}", id);
+        bidService.deleteBid(id);
+        log.info("Заявка с ID {}, успешно удалена!", id);
+        return ResponseEntity.noContent().build();
     }
 
 }

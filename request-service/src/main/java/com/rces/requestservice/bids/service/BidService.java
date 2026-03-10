@@ -1,12 +1,16 @@
 package com.rces.requestservice.bids.service;
 
+import com.rces.requestservice.bids.BidResponse;
 import com.rces.requestservice.bids.CreateBidRequest;
-import com.rces.requestservice.bids.domain.Bid;
 
 public interface BidService {
 
-    Bid createBid(CreateBidRequest request);
+    BidResponse createBid(CreateBidRequest request);
 
-    Bid getBidWithItems(Long id);
+    BidResponse getBidWithItems(Long id);
+
+    BidResponse updateBid(BidUpdate bidUpdate);
+
+    void deleteBid(Long id);
 
 }
