@@ -34,4 +34,20 @@ public class GlobalExceptionHandler {
 
     }
 
+    @ExceptionHandler(ValidateBidException.class)
+    public ResponseEntity<ErrorDto> handleException(ValidateBidException ex) {
+
+        ErrorDto error = new ErrorDto(500, "Нарушение валидации", ex.getMessage());
+
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(NotFoundBidItemException.class)
+    public ResponseEntity<ErrorDto> handleException(NotFoundBidItemException ex) {
+
+        ErrorDto error = new ErrorDto(404, "Item not found", ex.getMessage());
+
+        return ResponseEntity.badRequest().body(error);
+    }
+
 }

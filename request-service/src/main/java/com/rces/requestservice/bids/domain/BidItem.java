@@ -1,9 +1,12 @@
 package com.rces.requestservice.bids.domain;
 
 import jakarta.persistence.*;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.Objects;
 
 @Entity
 @Table(name = "bid_item")
@@ -26,6 +29,19 @@ public class BidItem {
     public BidItem(String itemName, int quantity) {
         this.itemName = itemName;
         this.quantity = quantity;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || this.getClass() != obj.getClass()) return false;
+        BidItem item = (BidItem) obj;
+        return Objects.equals(id, item.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 
 }

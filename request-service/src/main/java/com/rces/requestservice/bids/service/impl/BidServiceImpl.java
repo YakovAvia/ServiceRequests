@@ -1,12 +1,17 @@
 package com.rces.requestservice.bids.service.impl;
 
 import com.rces.requestservice.bids.BidResponse;
+import com.rces.requestservice.bids.BidStatus;
 import com.rces.requestservice.bids.CreateBidRequest;
 import com.rces.requestservice.bids.domain.Bid;
 import com.rces.requestservice.bids.domain.BidItem;
+import com.rces.requestservice.bids.domain.dto.AddBidItemRequest;
 import com.rces.requestservice.bids.domain.dto.BidCreateEvent;
+import com.rces.requestservice.bids.exception.NotFoundBidItemException;
 import com.rces.requestservice.bids.exception.NotFoundOrderException;
+import com.rces.requestservice.bids.exception.ValidateBidException;
 import com.rces.requestservice.bids.metrics.annotation.BusinessMetric;
+import com.rces.requestservice.bids.repository.BidItemRepository;
 import com.rces.requestservice.bids.repository.BidRepository;
 import com.rces.requestservice.bids.service.BidService;
 import com.rces.requestservice.bids.service.BidUpdate;
@@ -20,8 +25,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +35,7 @@ public class BidServiceImpl implements BidService {
 
     private final BidRepository bidRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final BidItemRepository bidItemRepository;
 
     @Transactional
     @BusinessMetric(
@@ -38,25 +44,10 @@ public class BidServiceImpl implements BidService {
     )
     @Observed(name = "bid.creation", contextualName = "create-bid")
     @SneakyThrows
+    @Override
     public BidResponse createBid(CreateBidRequest request) {
 
         log.info("В метод createBid получен запрос: {}", request);
-
-        //TODO имитация проблемы удалю
-        int random = new Random().nextInt(100);
-        log.info("Сгенерировалось случайное число: {}", random);
-
-        if (random < 30) {
-            log.error("Возникли проблемы с сохранением заявки");
-            throw new RuntimeException("Ну типа ошибка соединения с бд");
-        }
-
-        if (random > 70) {
-            log.info("Сервис BidService замедлился");
-            Thread.sleep(200);
-        }
-
-        log.info("Передает items в заявку : {}", request.items());
 
         List<BidItem> items = request.items().stream()
                 .map(item -> new BidItem(
@@ -101,6 +92,7 @@ public class BidServiceImpl implements BidService {
             value = "bid.retrieved",
             tags = {"operation=get", "type=read"}
     )
+    @Override
     public BidResponse getBidWithItems(Long id) {
 
         log.info("В метод getBidWithItems получен запрос поиска bid по id: {}", id);
@@ -136,6 +128,7 @@ public class BidServiceImpl implements BidService {
             value = "bid.updated",
             tags = {"operation=patch, type=write"}
     )
+    @Override
     public BidResponse updateBid(BidUpdate bidUpdate) {
 
         log.info("Метод начинает обработку на обновление заявки с ID: {}", bidUpdate.id());
@@ -145,13 +138,10 @@ public class BidServiceImpl implements BidService {
         );
 
         bidRequest.setStatus(bidUpdate.status());
-        for (BidItem item : bidUpdate.items()) {
-            bidRequest.getItems().stream()
-                    .filter(i -> !i.getItemName().equals(item.getItemName()))
-                    .forEach(i -> {
-                        i.setItemName(item.getItemName());
-                        i.setQuantity(item.getQuantity());
-                    });
+        if (bidRequest.getStatus().equals(BidStatus.NEW)) {
+
+        } else {
+            throw new ValidateBidException("Изменять информацию в заявке можно только в статусе " + BidStatus.NEW.getEnumName());
         }
 
         try {
@@ -182,7 +172,9 @@ public class BidServiceImpl implements BidService {
             value = "bid.deleted",
             tags = {"operation=deleted", "type=deleted"}
     )
+    @Override
     public void deleteBid(Long id) {
+
         Bid bid = bidRepository.findById(id).orElseThrow(
                 () -> new NotFoundOrderException("Заявка с ID " + id + ", уже удалена или не существует!"));
 
@@ -210,4 +202,55 @@ public class BidServiceImpl implements BidService {
         }
     }
 
+    @Transactional
+    @Override
+    public void deleteBidItemId(Long id) {
+
+        BidItem item = bidItemRepository.findById(id).orElseThrow(
+                () -> new NotFoundBidItemException("Предмет с ID " + id + " не найден!"));
+        Bid bid = bidRepository.findById(item.getBid().getId()).orElseThrow(
+                () -> new NotFoundOrderException("Заявка с ID " + item.getBid().getId() + " не найдена!"));
+        try {
+
+            MDC.put("item_id", String.valueOf(item.getId()));
+            MDC.put("bid_status", String.valueOf(bid.getStatus()));
+
+            log.info("Удаляем BidItem с ID {}", id);
+
+            if (item.getBid() != null && bid.getStatus().equals(BidStatus.NEW)) {
+                bidItemRepository.delete(item);
+            }
+
+            log.info("BidItem с ID {}, успешно удален", id);
+        } finally {
+            MDC.remove("item_id");
+            MDC.remove("bid_status");
+        }
+    }
+
+    @Transactional
+    @Override
+    public BidResponse addBidItem(AddBidItemRequest bidItemRequest) {
+
+        List<BidItem> bidItems = new ArrayList<>();
+
+        log.info("Добавляем BidItem в Bid");
+
+        Bid bid = bidRepository.findById(bidItemRequest.id()).orElseThrow(
+                () -> new NotFoundOrderException("Заявка с ID " + bidItemRequest.id() +" не найдена"));
+
+        if (bidItemRequest.item() != null && !bidItemRequest.item().isEmpty()) {
+            bidItems = bidItemRequest.item().stream()
+                    .filter()
+                    .map(bidItem -> new BidItem(
+                            bidItem.itemName(),
+                            bidItem.quantity()
+                    ))
+                    .toList();
+        }
+
+        bid.getItems().addAll(bidItems);
+
+        return BidResponse.from(bid);
+    }
 }
