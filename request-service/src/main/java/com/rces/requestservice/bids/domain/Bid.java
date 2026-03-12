@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,6 +31,12 @@ public class Bid {
 
     @Column(name = "create_at")
     private Instant createAt;
+
+    @Column(name = "timer")
+    private LocalDateTime timer;
+
+    @Column(name = "description")
+    private String description;
 
     @OneToMany(mappedBy = "bid", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<BidItem> items = new ArrayList<>();

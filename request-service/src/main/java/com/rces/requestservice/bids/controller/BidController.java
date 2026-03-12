@@ -2,6 +2,7 @@ package com.rces.requestservice.bids.controller;
 
 import com.rces.requestservice.bids.BidResponse;
 import com.rces.requestservice.bids.CreateBidRequest;
+import com.rces.requestservice.bids.UpdateBidStatus;
 import com.rces.requestservice.bids.domain.dto.AddBidItemRequest;
 import com.rces.requestservice.bids.service.BidService;
 import com.rces.requestservice.bids.service.BidUpdate;
@@ -12,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
-import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -26,7 +26,7 @@ public class BidController {
     public ResponseEntity<BidResponse> createBid(
             @Valid @RequestBody CreateBidRequest request
     ) {
-        log.info("Пришел запрос на создание заявки, данные в заявке: {}", request);
+        log.info("Запрос на создание заявки, данные в заявке: {}", request);
 
         BidResponse response = bidService.createBid(request);
 
@@ -35,15 +35,13 @@ public class BidController {
         return ResponseEntity.created(URI.create("/bid/" + response.id())).body(response);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<BidResponse> getBidWithItems(
-            @PathVariable Long id
+    @PatchMapping("/add/item")
+    public ResponseEntity<BidResponse> addBidItem(
+            @Valid @RequestBody AddBidItemRequest items
     ) {
-        log.info("Пришел запрос на получение заявки с вложенными в нее деталями, ID: {}", id);
+        log.info("Запрос на добавление BidItem в Bid");
 
-        BidResponse response = bidService.getBidWithItems(id);
-
-        log.info("Заявка успешно получена и передана, заявка: {}", response);
+        BidResponse response = bidService.addBidItem(items);
 
         return ResponseEntity.ok(response);
     }
@@ -52,7 +50,7 @@ public class BidController {
     public ResponseEntity<BidResponse> updateBid(
             @RequestBody BidUpdate bidUpdate
     ) {
-        log.info("Пришел запрос на обновление заявки с ID: {}", bidUpdate.id());
+        log.info("Запрос на обновление заявки с ID: {}", bidUpdate.id());
 
         BidResponse response = bidService.updateBid(bidUpdate);
 
@@ -61,14 +59,15 @@ public class BidController {
         return ResponseEntity.ok(response);
     }
 
-    @PatchMapping("/add/item")
-    public ResponseEntity<BidResponse> addBidItem(
-            @Valid @RequestBody AddBidItemRequest items
-            ) {
+    @GetMapping("/{id}")
+    public ResponseEntity<BidResponse> getBidWithItems(
+            @PathVariable Long id
+    ) {
+        log.info("Запрос на получение заявки с вложенными в нее деталями, ID: {}", id);
 
-        log.info("Пришел запрос на добавление BidItem в Bid");
+        BidResponse response = bidService.getBidWithItems(id);
 
-        BidResponse response = bidService.addBidItem(items);
+        log.info("Заявка успешно получена и передана, заявка: {}", response);
 
         return ResponseEntity.ok(response);
     }
@@ -77,7 +76,7 @@ public class BidController {
     public ResponseEntity<Void> deleteBid(
             @PathVariable Long id
     ) {
-        log.info("Пришел запрос на удаление заявки с ID: {}", id);
+        log.info("Запрос на удаление заявки с ID: {}", id);
 
         bidService.deleteBid(id);
 
@@ -88,7 +87,7 @@ public class BidController {
     public ResponseEntity<Void> deleteBidWithItems(
             @PathVariable Long id
     ) {
-        log.info("Пришел запрос на удаление из заявки предмета с ID: {}", id);
+        log.info("Запрос на удаление из заявки предмета с ID: {}", id);
 
         bidService.deleteBidItemId(id);
 

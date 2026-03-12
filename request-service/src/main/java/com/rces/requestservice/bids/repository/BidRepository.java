@@ -4,6 +4,7 @@ import com.rces.requestservice.bids.domain.Bid;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
@@ -25,8 +26,9 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
     @EntityGraph(attributePaths = {"items"})
     Optional<Bid> findWithItemsById(Long id);
 
-    @Query("""
-            SELECT e b
-            """)
-    Boolean existsBidByItems(String itemName);
+    @Query("SELECT EXISTS (SELECT 1 FROM BidItem e " +
+            "JOIN e.bid b " +
+            "WHERE b.id = :bidId AND e.itemName = :itemName)")
+    Boolean existsBidByItems(@Param("itemName") String itemName, @Param("bidId") Long bidId);
+
 }

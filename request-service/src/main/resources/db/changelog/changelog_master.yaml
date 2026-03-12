@@ -16,3 +16,12 @@ databaseChangeLog:
         relativeToChangeFile: true
         splitStatements: true
         endDelimiter: ;
+
+  - changeSet:
+      id: V3__add_column.sql
+      author: yakovavia
+      sqlFile:
+        path: db/changelog/changes/V3__add_column.sql
+        relativeToChangeFile: true
+        splitStatements: true
+        endDelimiter: ;

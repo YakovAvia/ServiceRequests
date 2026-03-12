@@ -5,7 +5,7 @@ import com.rces.requestservice.bids.CreateBidRequest;
 import java.util.List;
 
 public record AddBidItemRequest(
-        Long id,
+        Long bidId,
         List<CreateBidRequest.BidItemRequest> item
 ) {
 }

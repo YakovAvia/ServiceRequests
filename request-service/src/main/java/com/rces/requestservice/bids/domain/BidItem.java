@@ -31,6 +31,12 @@ public class BidItem {
         this.quantity = quantity;
     }
 
+    public BidItem(String itemName, int quantity, Bid bid) {
+        this.itemName = itemName;
+        this.quantity = quantity;
+        this.bid = bid;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;

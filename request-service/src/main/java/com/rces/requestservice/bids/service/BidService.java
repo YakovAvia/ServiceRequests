@@ -2,6 +2,7 @@ package com.rces.requestservice.bids.service;
 
 import com.rces.requestservice.bids.BidResponse;
 import com.rces.requestservice.bids.CreateBidRequest;
+import com.rces.requestservice.bids.UpdateBidStatus;
 import com.rces.requestservice.bids.domain.dto.AddBidItemRequest;
 import jakarta.validation.Valid;
 
@@ -20,4 +21,5 @@ public interface BidService {
     void deleteBidItemId(Long id);
 
     BidResponse addBidItem(AddBidItemRequest itemRequests);
+
 }
