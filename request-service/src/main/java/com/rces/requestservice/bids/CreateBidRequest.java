@@ -11,7 +11,8 @@ public record CreateBidRequest(
 
         @Valid
         @NotEmpty(message = "BidItems не должен быть пустым!")
-        List<BidItemRequest> items
+        List<BidItemRequest> items,
+        String description
 
 ) {
 

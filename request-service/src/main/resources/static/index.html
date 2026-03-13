@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление заявками</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">
+                    <span class="logo-icon">📋</span>
+                    Заявки
+                </h1>
+                <button class="btn btn-primary" id="createBidBtn">
+                    <span class="btn-icon">+</span>
+                    Новая заявка
+                </button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="toolbar">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Поиск по ID или описанию..." class="search-input">
+                </div>
+                <div class="filter-group">
+                    <select id="statusFilter" class="filter-select">
+                        <option value="">Все статусы</option>
+                        <option value="NEW">Новая</option>
+                        <option value="WORK">В работе</option>
+                        <option value="COMPLETED">Выполнена</option>
+                        <option value="STOPPED">Приостановлена</option>
+                        <option value="REJECTED">Забракована</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="bids-grid" id="bidsGrid">
+                <div class="loading-spinner" id="loadingSpinner">
+                    <div class="spinner"></div>
+                    <p>Загрузка заявок...</p>
+                </div>
+            </div>
+
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <div class="empty-icon">📭</div>
+                <h3>Заявок пока нет</h3>
+                <p>Создайте первую заявку, чтобы начать работу</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно создания заявки -->
+    <div class="modal" id="createModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>Создание заявки</h2>
+                <button class="modal-close" id="closeCreateModal">&times;</button>
+            </div>
+            <form id="createBidForm" class="bid-form">
+                <div class="form-group">
+                    <label for="description">Описание</label>
+                    <textarea id="description" name="description" rows="3" placeholder="Введите описание заявки..."></textarea>
+                </div>
+                <div class="form-section">
+                    <h3>Товары</h3>
+                    <div id="itemsContainer" class="items-container"></div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="addItemBtn">
+                        + Добавить товар
+                    </button>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-ghost" id="cancelCreate">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать заявку</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно просмотра заявки -->
+    <div class="modal" id="detailModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-container modal-lg">
+            <div class="modal-header">
+                <h2>Детали заявки</h2>
+                <button class="modal-close" id="closeDetailModal">&times;</button>
+            </div>
+            <div class="bid-detail" id="bidDetail">
+                <div class="detail-header">
+                    <div class="detail-id">Заявка #<span id="detailId">-</span></div>
+                    <span class="status-badge" id="detailStatus">-</span>
+                </div>
+                <div class="detail-info">
+                    <div class="info-row">
+                        <span class="info-label">Дата создания:</span>
+                        <span class="info-value" id="detailCreatedAt">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Описание:</span>
+                        <span class="info-value" id="detailDescription">-</span>
+                    </div>
+                </div>
+                <div class="detail-items">
+                    <h3>Товары</h3>
+                    <div class="items-list" id="detailItems"></div>
+                </div>
+                <div class="detail-actions">
+                    <select id="updateStatusSelect" class="filter-select">
+                        <option value="NEW">Новая</option>
+                        <option value="WORK">В работе</option>
+                        <option value="COMPLETED">Выполнена</option>
+                        <option value="STOPPED">Приостановлена</option>
+                        <option value="REJECTED">Забракована</option>
+                    </select>
+                    <button class="btn btn-primary" id="updateStatusBtn">Обновить статус</button>
+                    <button class="btn btn-danger" id="deleteBidBtn">Удалить заявку</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast уведомления -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

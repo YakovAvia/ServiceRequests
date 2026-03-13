@@ -1,11 +1,11 @@
 package com.rces.requestservice.bids.domain;
 
 import jakarta.persistence.*;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalTime;
 import java.util.Objects;
 
 @Entity
@@ -19,8 +19,14 @@ public class BidItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "item_name")
     private String itemName;
+
+    @Column(name = "quantity")
     private int quantity;
+
+    @Column(name = "timer")
+    private LocalTime timer;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "bid_id", nullable = false)
@@ -49,5 +55,4 @@ public class BidItem {
     public int hashCode() {
         return Objects.hash(id);
     }
-
 }

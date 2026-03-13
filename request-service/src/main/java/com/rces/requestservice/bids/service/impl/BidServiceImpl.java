@@ -24,8 +24,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -113,6 +114,8 @@ public class BidServiceImpl implements BidService {
 
         bid.getItems().addAll(bidItems);
 
+        bidRepository.saveAndFlush(bid);
+
         return BidResponse.from(bid);
     }
 
@@ -157,13 +160,25 @@ public class BidServiceImpl implements BidService {
 
             case STOPPED -> {
                 try {
-                    log.info("Заявка с ID: {} переведена в статус - {}, на период - {}", bidRequest.getId(), bidRequest.getStatus().getEnumName(), bidUpdate.time());
+                    log.info("Заявка с ID: {} переведена в статус - {}", bidRequest.getId(), bidRequest.getStatus().getEnumName());
 
                     MDC.put("bid_id", bidRequest.getId().toString());
                     MDC.put("bid_status", bidUpdate.status().name());
 
                     bidRequest.setStatus(BidStatus.STOPPED);
-                    bidRequest.setTimer(bidRequest.getTimer());
+                    bidRequest.setDescription(bidRequest.getDescription());
+
+                    Map<Long, BidItem> mapBidItem = bidUpdate.items().stream()
+                                    .collect(Collectors.toMap(BidItem::getId, Function.identity()));
+
+                    log.info(mapBidItem.toString());
+
+                    bidRequest.getItems().forEach(item ->
+                            Optional.ofNullable(mapBidItem.get(item.getId()))
+                                    .ifPresent(update -> item.setTimer(update.getTimer())));
+
+
+
                     eventPublisher.publishEvent(
                             BidCreateEvent.of(
                                     bidRequest.getId(),

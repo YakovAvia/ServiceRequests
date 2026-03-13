@@ -11,9 +11,7 @@ public record UpdateBidStatus(
         Long bidId,
 
         @NotBlank(message = "Статус заявки должен быть указан!")
-        BidStatus status,
-
-        LocalTime timer
+        BidStatus status
 ) {
 
 }

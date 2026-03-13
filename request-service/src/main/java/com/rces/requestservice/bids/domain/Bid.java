@@ -32,9 +32,6 @@ public class Bid {
     @Column(name = "create_at")
     private Instant createAt;
 
-    @Column(name = "timer")
-    private LocalDateTime timer;
-
     @Column(name = "description")
     private String description;
 
